@@ -169,7 +169,7 @@ async function init(){
     const [cl,tr]=await Promise.all([load(CONFIG.clanarineCSV),load(CONFIG.troskoviCSV)]);
     clanovi=cl.map(r=>({ime:(r[0]||'').trim(),aktivan:!/^neakt/i.test((r[1]||'').trim()),uplatio:num(r[2]),datum:clean(r[3]),lijec:clean(r[4]),nap:r[5]||''}))
               .filter(c=>c.ime).sort((a,b)=>a.ime.localeCompare(b.ime,'hr'));
-    const troskovi=tr.map(r=>({datum:clean(r[0]),utak:(r[1]||'').trim()||'Ostalo',opis:(r[2]||'').trim(),iznos:num(r[3])})).filter(t=>t.opis||r[1]);
+    const troskovi=tr.map(r=>({datum:clean(r[0]),utak:(r[1]||'').trim()||'Ostalo',opis:(r[2]||'').trim(),iznos:num(r[3]),raw:(r[1]||'').trim()})).filter(t=>t.opis||t.raw);
 
     const upl=clanovi.reduce((s,c)=>s+c.uplatio,0);
     const aktivni=clanovi.filter(c=>c.aktivan);
