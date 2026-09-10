@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NK Matija Gubec – članarine</title>
+<style>
+  :root{
+    --black:#141414; --yellow:#f5c400; --chalk:#f7f6f1; --ink:#1b1b1b;
+    --line:#dad8d0; --paid:#1f7a3a; --warn:#d19a00; --unpaid:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--chalk)}
+  header{background:var(--black);color:#fff;padding:22px 20px 18px;border-bottom:8px solid var(--yellow)}
+  header h1{margin:0;font-size:26px;font-weight:700}
+  header p{margin:4px 0 0;opacity:.85;font-size:14px}
+  main{max-width:960px;margin:0 auto;padding:20px}
+  .blagajna{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    background:#fff;border:2px solid var(--line);padding:16px 20px;margin-bottom:14px}
+  .blagajna span{font-size:17px;font-weight:600}
+  .blagajna b{font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+  .blagajna.pos{border-color:var(--paid)} .blagajna.pos b{color:var(--paid)}
+  .blagajna.neg{border-color:var(--unpaid)} .blagajna.neg b{color:var(--unpaid)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:26px}
+  .stat{background:#fff;border:1px solid var(--line);padding:12px 14px;border-left:5px solid var(--yellow)}
+  .stat b{display:block;font-size:22px;line-height:1.1}
+  .stat span{font-size:13px;color:#555}
+  h2{font-size:18px;margin:26px 0 8px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  h2 small{font-weight:400;font-size:14px;color:#555}
+  input[type=search]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:4px;width:100%;max-width:280px;background:#fff}
+  .wrap{overflow-x:auto;background:#fff;border:1px solid var(--line)}
+  table{border-collapse:collapse;width:100%;min-width:520px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:#f3e9b8;font-weight:600;font-size:14px;position:sticky;top:0}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:#faf9f4}
+  tfoot td{font-weight:700;background:var(--black);color:var(--yellow)}
+  tr.match td{background:var(--yellow);color:var(--black);font-weight:700}
+  tr.sub td{font-weight:600;background:#f3e9b8}
+  .tag{display:inline-block;padding:2px 9px;border-radius:3px;font-size:13px;font-weight:600;color:#fff}
+  .tag.grey{background:#8a8a8a} tr.inactive td{color:#888}
+  .tag.ok{background:var(--paid)} .tag.warn{background:var(--warn)} .tag.orange{background:#e07b00} .tag.bad{background:var(--unpaid)}
+  .note{font-size:14px;color:#555;white-space:normal}
+  .msg{padding:14px 16px;background:#fff;border:1px solid var(--line);margin:12px 0}
+  .msg.err{border-color:var(--unpaid);color:var(--unpaid)}
+  footer{text-align:center;font-size:13px;color:#777;padding:30px 0 10px}
+  @media (max-width:600px){header h1{font-size:22px} th,td{padding:8px 9px} .blagajna b{font-size:28px}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <p id="sub"></p>
+</header>
+
+<main>
+  <div class="blagajna" id="blagajna"><span>Trenutno stanje blagajne:</span><b>–</b></div>
+  <div class="stats" id="stats"></div>
+
+  <h2>Članarine <small id="clanCount"></small></h2>
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <input type="search" id="q" placeholder="Traži igrača…" aria-label="Traži igrača">
+    <label style="font-size:14px"><input type="checkbox" id="neakt"> prikaži i neaktivne</label>
+  </div>
+  <div class="wrap" style="margin-top:8px">
+    <table id="clanarine">
+      <thead><tr><th>Igrač</th><th>Status</th><th class="num">Uplatio</th><th>Datum uplate</th><th>Članarina</th><th>Liječnički vrijedi do</th><th>Napomena</th></tr></thead>
+      <tbody></tbody>
+      <tfoot></tfoot>
+    </table>
+  </div>
+
+  <h2>Troškovi po utakmicama <small id="trosCount"></small></h2>
+  <div class="wrap">
+    <table id="troskovi">
+      <thead><tr><th>Datum</th><th>Opis</th><th class="num">Iznos</th></tr></thead>
+      <tbody></tbody>
+      <tfoot></tfoot>
+    </table>
+  </div>
+
+  <div id="poruka"></div>
+</main>
+<footer id="updated"></footer>
+
+<script>
+/* ============ POSTAVKE – jedino što trebaš mijenjati ============ */
+const CONFIG = {
+  naziv: "NK Matija Gubec",
+  podnaslov: "Gornja Stubica · članarine i troškovi, sezona 2026/27",
+  valuta: "€",
+  clanarina: 80,                  // očekivani iznos po igraču
+  lijecnickiUpozorenjeDana: 30,   // koliko dana prije isteka liječničkog pokaži žuto
+  // Google Sheet → Datoteka → Dijeli → Objavi na webu → odaberi list → CSV → kopiraj link
+  clanarineCSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTY8827RvQkmKNF0ftzJh-HAsMFElHPqyinVR1h-BZMLA64YIkyBIiUPoQ3IH_tD5od6WdHfGDqlxBL/pub?gid=63270549&single=true&output=csv",   // list "Clanarine": Igrač | Status | Uplatio | Datum uplate | Liječnički vrijedi do | Napomena
+  troskoviCSV:  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTY8827RvQkmKNF0ftzJh-HAsMFElHPqyinVR1h-BZMLA64YIkyBIiUPoQ3IH_tD5od6WdHfGDqlxBL/pub?gid=746552981&single=true&output=csv",   // list "Troskovi":  Datum | Utakmica | Opis | Iznos
+};
+/* ================================================================= */
+
+document.getElementById('title').textContent = CONFIG.naziv;
+document.getElementById('sub').textContent = CONFIG.podnaslov;
+
+function parseCSV(text){
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c=='"'){ if(text[i+1]=='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if(c=='"') q=true;
+    else if(c==','){row.push(cell);cell='';}
+    else if(c=='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+    else if(c!='\r') cell+=c;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  return rows.filter(r=>r.some(x=>x.trim()!==''));
+}
+const num=s=>{const n=parseFloat(String(s||'').replace(/\s/g,'').replace(',','.'));return isNaN(n)?0:n;};
+const fmt=n=>n.toLocaleString('hr-HR',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+CONFIG.valuta;
+const clean=s=>/1899/.test(String(s||''))?'':String(s||'').trim();
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// prihvaća 31.12.2026, 31.12.2026., 2026-12-31, 12/31/2026
+function parseDate(s){
+  s=String(s||'').trim(); if(!s) return null;
+  let m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/); if(m) return new Date(m[3],m[2]-1,m[1]);
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(m[1],m[2]-1,m[3]);
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(m) return new Date(m[3],m[1]-1,m[2]);
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function lijecnicki(s){
+  const d=parseDate(s); if(!d) return '<span class="note">–</span>';
+  const dana=Math.ceil((d-new Date())/864e5);
+  const txt=d.toLocaleDateString('hr-HR');
+  if(dana<0) return `<span class="tag bad">${txt} · istekao</span>`;
+  if(dana<=CONFIG.lijecnickiUpozorenjeDana) return `<span class="tag warn">${txt} · još ${dana} d</span>`;
+  return `<span class="tag ok">${txt}</span>`;
+}
+
+async function load(url){
+  const r=await fetch(url+(url.includes('?')?'&':'?')+'t='+Date.now());
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return parseCSV(await r.text()).slice(1);   // preskoči zaglavlje
+}
+
+function badge(u){
+  if(u>=CONFIG.clanarina) return '<span class="tag ok">Plaćeno</span>';
+  if(u>0) return `<span class="tag orange">Djelomično · još ${fmt(CONFIG.clanarina-u)}</span>`;
+  return '<span class="tag bad">Nije plaćeno</span>';
+}
+let clanovi=[];
+function renderClanovi(filter=''){
+  const tb=document.querySelector('#clanarine tbody');
+  const f=filter.trim().toLowerCase();
+  const showNeakt=document.getElementById('neakt').checked;
+  tb.innerHTML=clanovi.filter(c=>(showNeakt||c.aktivan)&&(!f||c.ime.toLowerCase().includes(f))).map(c=>
+    `<tr class="${c.aktivan?'':'inactive'}"><td>${esc(c.ime)}</td><td>${c.aktivan?'<span class="tag ok">Aktivan</span>':'<span class="tag grey">Neaktivan</span>'}</td><td class="num">${c.uplatio?fmt(c.uplatio):'–'}</td><td>${esc(c.datum)}</td>
+     <td>${badge(c.uplatio)}</td>
+     <td>${lijecnicki(c.lijec)}</td><td class="note">${esc(c.nap)}</td></tr>`
+  ).join('')||'<tr><td colspan="7">Nema rezultata.</td></tr>';
+}
+document.getElementById('q').addEventListener('input',e=>renderClanovi(e.target.value));
+document.getElementById('neakt').addEventListener('change',()=>renderClanovi(document.getElementById('q').value));
+
+async function init(){
+  const msg=document.getElementById('poruka');
+  if(!CONFIG.clanarineCSV||!CONFIG.troskoviCSV){
+    msg.innerHTML='<div class="msg">Stranica još nije spojena na Google Sheet. Otvori <b>index.html</b>, pronađi <b>CONFIG</b> na vrhu skripte i upiši CSV linkove oba lista.</div>';
+    return;
+  }
+  try{
+    const [cl,tr]=await Promise.all([load(CONFIG.clanarineCSV),load(CONFIG.troskoviCSV)]);
+    clanovi=cl.map(r=>({ime:(r[0]||'').trim(),aktivan:!/^neakt/i.test((r[1]||'').trim()),uplatio:num(r[2]),datum:clean(r[3]),lijec:clean(r[4]),nap:r[5]||''}))
+              .filter(c=>c.ime).sort((a,b)=>a.ime.localeCompare(b.ime,'hr'));
+    const troskovi=tr.map(r=>({datum:clean(r[0]),utak:(r[1]||'').trim()||'Ostalo',opis:(r[2]||'').trim(),iznos:num(r[3])})).filter(t=>t.opis||r[1]);
+
+    const upl=clanovi.reduce((s,c)=>s+c.uplatio,0);
+    const aktivni=clanovi.filter(c=>c.aktivan);
+    const brPl=aktivni.filter(c=>c.uplatio>=CONFIG.clanarina).length;
+    const tros=troskovi.filter(t=>t.opis).reduce((s,t)=>s+t.iznos,0);
+    const stanje=upl-tros;
+
+    const bl=document.getElementById('blagajna');
+    bl.className='blagajna '+(stanje<0?'neg':'pos');
+    bl.querySelector('b').textContent=fmt(stanje);
+
+    document.getElementById('stats').innerHTML=`
+      <div class="stat"><b>${fmt(upl)}</b><span>ukupno uplaćene članarine</span></div>
+      <div class="stat"><b>${brPl} / ${aktivni.length}</b><span>aktivnih igrača platilo cijelih ${fmt(CONFIG.clanarina)}</span></div>
+      <div class="stat"><b>${fmt(tros)}</b><span>ukupni troškovi</span></div>`;
+
+    document.getElementById('clanCount').textContent=aktivni.length+' aktivnih, '+(clanovi.length-aktivni.length)+' neaktivnih';
+    renderClanovi();
+    document.querySelector('#clanarine tfoot').innerHTML=`<tr><td colspan="2">Ukupno uplaćeno</td><td class="num">${fmt(upl)}</td><td colspan="4"></td></tr>`;
+
+    const grupe=[];
+    troskovi.forEach(t=>{let g=grupe.find(x=>x.ime===t.utak);if(!g){g={ime:t.utak,stavke:[]};grupe.push(g);}if(t.opis)g.stavke.push(t);});
+    document.getElementById('trosCount').textContent=grupe.length+' utakmica, '+troskovi.filter(t=>t.opis).length+' stavki';
+    document.querySelector('#troskovi tbody').innerHTML=grupe.map(g=>{
+      const sum=g.stavke.reduce((s,t)=>s+t.iznos,0);
+      return `<tr class="match"><td colspan="3">${esc(g.ime)}</td></tr>`+
+        (g.stavke.map(t=>`<tr><td>${esc(t.datum)}</td><td class="note">${esc(t.opis)}</td><td class="num">${fmt(t.iznos)}</td></tr>`).join('')||'<tr><td colspan="3" class="note">Još nema troškova.</td></tr>')+
+        `<tr class="sub"><td colspan="2">Ukupno ${esc(g.ime)}</td><td class="num">${fmt(sum)}</td></tr>`;
+    }).join('')||'<tr><td colspan="3">Još nema troškova.</td></tr>';
+    document.querySelector('#troskovi tfoot').innerHTML=`<tr><td colspan="2">Ukupno svi troškovi</td><td class="num">${fmt(tros)}</td></tr>`;
+    document.getElementById('updated').textContent='Podaci učitani '+new Date().toLocaleString('hr-HR');
+  }catch(e){
+    msg.innerHTML='<div class="msg err">Ne mogu učitati podatke ('+esc(e.message)+'). Provjeri jesu li listovi objavljeni kao CSV i jesu li linkovi točni.</div>';
+  }
+}
+init();
+</script>
+</body>
+</html>
