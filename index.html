@@ -97,41 +97,43 @@ const CONFIG = {
   valuta: "€",
   clanarina: 80,                  // očekivani iznos po igraču
   lijecnickiUpozorenjeDana: 30,   // koliko dana prije isteka liječničkog pokaži žuto
-  // Linkovi na podatke NAMJERNO NISU u kodu (repo je javan, a podaci sadrže imena igrača).
-  // Stranica ih čita iz dijela adrese iza "#", koji preglednik ne šalje nikamo:
-  //   https://.../nk-matija-gubec/#c=<CSV link lista Clanarine>&t=<CSV link lista Troskovi>
+  // Brojevi listova (gid) u Google Sheetu – nisu tajni.
+  gidClanarine: "63270549",   // list "Clanarine": Igrač | Status | Uplatio | Datum uplate | Novi liječnički vrijedi do | Napomena
+  gidTroskovi:  "746552981",  // list "Troskovi":  Datum | Utakmica | Opis | Iznos
+  // Ključ dokumenta NAMJERNO NIJE u kodu (repo je javan, a podaci sadrže imena igrača).
+  // Stranica ga čita iz dijela adrese iza "#", koji preglednik ne šalje nikamo:
+  //   https://.../nk-matija-gubec/#2PACX-...
   // Kad otvoriš stranicu bez toga, pokazat će obrazac koji ti složi taj link za dijeljenje.
-  // List "Clanarine": Igrač | Status | Uplatio | Datum uplate | Novi liječnički vrijedi do | Napomena
-  // List "Troskovi":  Datum | Utakmica | Opis | Iznos
 };
 /* ================================================================= */
 
-const LS_KEY='nkmg-izvori';
-function izvori(){
-  const h=new URLSearchParams(location.hash.slice(1));
-  if(h.get('c')&&h.get('t')){
-    const v={c:h.get('c'),t:h.get('t')};
-    try{localStorage.setItem(LS_KEY,JSON.stringify(v));}catch(e){}
-    return v;
-  }
-  try{const v=JSON.parse(localStorage.getItem(LS_KEY)||'null'); if(v&&v.c&&v.t) return v;}catch(e){}
-  return null;
+const LS_KEY='nkmg-kljuc';
+const csvUrl=(k,gid)=>`https://docs.google.com/spreadsheets/d/e/${k}/pub?gid=${gid}&single=true&output=csv`;
+function nadjiKljuc(s){
+  s=String(s||'');
+  for(let i=0;i<4&&/%[0-9a-f]{2}/i.test(s);i++){try{s=decodeURIComponent(s);}catch(e){break;}}
+  const m=s.match(/2PACX-[A-Za-z0-9_-]{20,}/); return m?m[0]:null;
 }
-const jeCSV=u=>/^https:\/\/docs\.google\.com\/spreadsheets\/.+output=csv/.test(u.trim());
+function izvori(){
+  let k=nadjiKljuc(location.hash);
+  if(k){ try{localStorage.setItem(LS_KEY,k);}catch(e){} }
+  else { try{k=nadjiKljuc(localStorage.getItem(LS_KEY));}catch(e){} }
+  return k?{c:csvUrl(k,CONFIG.gidClanarine),t:csvUrl(k,CONFIG.gidTroskovi)}:null;
+}
 function postavke(msg){
+  const losLink=location.hash.length>1;
   msg.innerHTML=`<div class="msg">
-    <b>Stranica nije spojena na podatke.</b> Ako si igrač, zatraži link u grupi momčadi.<br><br>
+    <b>${losLink?'Link nije ispravan.':'Stranica nije spojena na podatke.'}</b> Ako si igrač, zatraži link u grupi momčadi.<br><br>
     <details><summary>Za voditelja: spoji Google Sheet</summary>
-    <p style="font-size:14px">U Google Sheetu: Datoteka → Dijeli → Objavi na webu → odaberi list → CSV → kopiraj link. Ponovi za drugi list.</p>
-    <p><input id="inC" type="url" placeholder="CSV link lista Clanarine" style="width:100%;font:inherit;padding:7px"></p>
-    <p><input id="inT" type="url" placeholder="CSV link lista Troskovi" style="width:100%;font:inherit;padding:7px"></p>
+    <p style="font-size:14px">U Google Sheetu: Datoteka → Dijeli → Objavi na webu → Cijeli dokument → CSV → Objavi → kopiraj link.</p>
+    <p><input id="inC" type="url" placeholder="Link objavljenog dokumenta (…/pub?output=csv)" style="width:100%;font:inherit;padding:7px"></p>
     <button id="slozi" style="font:inherit;padding:7px 14px">Složi link za dijeljenje</button>
     <p id="izlaz" style="word-break:break-all;font-size:14px"></p></details></div>`;
   document.getElementById('slozi').onclick=()=>{
-    const c=document.getElementById('inC').value.trim(), t=document.getElementById('inT').value.trim();
+    const k=nadjiKljuc(document.getElementById('inC').value);
     const iz=document.getElementById('izlaz');
-    if(!jeCSV(c)||!jeCSV(t)){iz.textContent='Oba linka moraju biti Google Sheets CSV linkovi (završavaju s output=csv).';return;}
-    const link=location.origin+location.pathname+'#c='+encodeURIComponent(c)+'&t='+encodeURIComponent(t);
+    if(!k){iz.textContent='To nije link objavljenog Google Sheeta (mora sadržavati "2PACX-").';return;}
+    const link=location.origin+location.pathname+'#'+k;
     iz.innerHTML='Pošalji ovaj link samo u grupu momčadi, nemoj ga stavljati javno:<br><a href="'+link+'">'+esc(link)+'</a>';
     try{navigator.clipboard.writeText(link);iz.innerHTML+='<br><i>(kopirano)</i>';}catch(e){}
   };
@@ -202,7 +204,7 @@ document.getElementById('neakt').addEventListener('change',()=>renderClanovi(doc
 async function init(){
   const msg=document.getElementById('poruka');
   const src=izvori();
-  if(!src||!jeCSV(src.c)||!jeCSV(src.t)){ postavke(msg); return; }
+  if(!src){ postavke(msg); return; }
   try{
     const [cl,tr]=await Promise.all([load(src.c),load(src.t)]);
     clanovi=cl.map(r=>({ime:(r[0]||'').trim(),aktivan:!/^neakt/i.test((r[1]||'').trim()),uplatio:num(r[2]),datum:clean(r[3]),lijec:clean(r[4]),nap:r[5]||''}))
